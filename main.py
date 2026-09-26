@@ -5,12 +5,14 @@
 # ============================================================
 
 import asyncio
+import os
 from rubka import Robot, Message
 
 # ------------------------------------------------------------
-# توکن ربات رو اینجا بذار (یا از یه فایل config.py بخون)
+# توکن رو از Environment Variable ریلوی می‌خونه.
+# توی پنل ریلوی برو Variables و یه متغیر به اسم BOT_TOKEN بساز.
 # ------------------------------------------------------------
-BOT_TOKEN = "TOKEN_ربات_خودتو_اینجا_بذار"
+BOT_TOKEN = os.environ.get("BOT_TOKEN", "TOKEN_ربات_خودتو_اینجا_بذار")
 
 bot = Robot(token=BOT_TOKEN)
 
