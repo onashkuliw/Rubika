@@ -3,6 +3,10 @@ import os
 from datetime import datetime
 
 
+# =========================================================
+# DATABASE CONFIG
+# =========================================================
+
 DB_PATH = os.getenv("DATABASE_PATH", "bot.db")
 
 
@@ -26,96 +30,166 @@ def connect():
 # =========================================================
 
 def init():
+
     conn = connect()
     cur = conn.cursor()
 
-    # دانش‌آموزان
+    # =====================================================
+    # STUDENTS
+    # =====================================================
+
     cur.execute("""
         CREATE TABLE IF NOT EXISTS students (
+
             user_id TEXT PRIMARY KEY,
+
             name TEXT NOT NULL,
+
             score INTEGER DEFAULT 0,
+
             correct INTEGER DEFAULT 0,
+
             wrong INTEGER DEFAULT 0,
+
             total INTEGER DEFAULT 0,
+
             warnings INTEGER DEFAULT 0,
+
             registered_at TEXT
         )
     """)
 
-    # سوال‌ها
+    # =====================================================
+    # QUESTIONS
+    # =====================================================
+
     cur.execute("""
         CREATE TABLE IF NOT EXISTS questions (
+
             id INTEGER PRIMARY KEY AUTOINCREMENT,
+
             chapter INTEGER,
+
             lesson INTEGER,
+
             question TEXT NOT NULL,
+
             option_a TEXT NOT NULL,
+
             option_b TEXT NOT NULL,
+
             option_c TEXT NOT NULL,
+
             option_d TEXT NOT NULL,
+
             correct TEXT NOT NULL,
+
             score INTEGER DEFAULT 3,
+
             source_page INTEGER,
+
             explanation TEXT,
+
             enabled INTEGER DEFAULT 1
         )
     """)
 
-    # پاسخ‌ها
+    # =====================================================
+    # ANSWERS
+    # =====================================================
+
     cur.execute("""
         CREATE TABLE IF NOT EXISTS answers (
+
             id INTEGER PRIMARY KEY AUTOINCREMENT,
+
             user_id TEXT NOT NULL,
+
             question_id INTEGER NOT NULL,
+
             answer TEXT,
+
             is_correct INTEGER DEFAULT 0,
+
             score_added INTEGER DEFAULT 0,
+
             created_at TEXT,
+
             UNIQUE(user_id, question_id)
         )
     """)
 
-    # تنظیمات
+    # =====================================================
+    # SETTINGS
+    # =====================================================
+
     cur.execute("""
         CREATE TABLE IF NOT EXISTS settings (
+
             key TEXT PRIMARY KEY,
+
             value TEXT
         )
     """)
 
-    # لاگ ادمین
+    # =====================================================
+    # LOGS
+    # =====================================================
+
     cur.execute("""
         CREATE TABLE IF NOT EXISTS logs (
+
             id INTEGER PRIMARY KEY AUTOINCREMENT,
+
             admin_id TEXT,
+
             action TEXT,
+
             target_id TEXT,
+
             details TEXT,
+
             created_at TEXT
         )
     """)
 
-    # تنظیمات اولیه
+    # =====================================================
+    # DEFAULT SETTINGS
+    # =====================================================
+
     defaults = {
+
         "active_chapter": "1",
+
         "active_lesson": "1",
+
     }
 
     for key, value in defaults.items():
 
         cur.execute(
             """
-            INSERT OR IGNORE INTO settings (key, value)
+            INSERT OR IGNORE INTO settings
+            (
+                key,
+                value
+            )
             VALUES (?, ?)
             """,
-            (key, value)
+            (
+                str(key),
+                str(value)
+            )
         )
 
     conn.commit()
+
     conn.close()
 
+    print("======================================")
     print("✅ Database initialized")
+    print(f"📁 Database: {DB_PATH}")
+    print("======================================")
 
 
 # =========================================================
@@ -128,13 +202,21 @@ def set_setting(key, value):
 
     conn.execute(
         """
-        INSERT OR REPLACE INTO settings (key, value)
+        INSERT OR REPLACE INTO settings
+        (
+            key,
+            value
+        )
         VALUES (?, ?)
         """,
-        (str(key), str(value))
+        (
+            str(key),
+            str(value)
+        )
     )
 
     conn.commit()
+
     conn.close()
 
 
@@ -148,12 +230,15 @@ def get_setting(key, default=None):
         FROM settings
         WHERE key = ?
         """,
-        (str(key),)
+        (
+            str(key),
+        )
     ).fetchone()
 
     conn.close()
 
     if row is None:
+
         return default
 
     return row["value"]
@@ -166,6 +251,9 @@ def get_setting(key, default=None):
 def add_student(user_id, name):
 
     conn = connect()
+
+    user_id = str(user_id)
+    name = str(name)
 
     now = datetime.utcnow().isoformat()
 
@@ -185,17 +273,20 @@ def add_student(user_id, name):
         VALUES (?, ?, 0, 0, 0, 0, 0, ?)
 
         ON CONFLICT(user_id)
+
         DO UPDATE SET
+
             name = excluded.name
         """,
         (
-            str(user_id),
-            str(name),
+            user_id,
+            name,
             now
         )
     )
 
     conn.commit()
+
     conn.close()
 
 
@@ -209,7 +300,9 @@ def get_student(user_id):
         FROM students
         WHERE user_id = ?
         """,
-        (str(user_id),)
+        (
+            str(user_id),
+        )
     ).fetchone()
 
     conn.close()
@@ -226,10 +319,13 @@ def delete_student(user_id):
         DELETE FROM students
         WHERE user_id = ?
         """,
-        (str(user_id),)
+        (
+            str(user_id),
+        )
     )
 
     conn.commit()
+
     conn.close()
 
 
@@ -241,7 +337,9 @@ def get_students():
         """
         SELECT *
         FROM students
-        ORDER BY name COLLATE NOCASE
+
+        ORDER BY
+            name COLLATE NOCASE ASC
         """
     ).fetchall()
 
@@ -258,10 +356,17 @@ def leaderboard(limit=20):
         """
         SELECT *
         FROM students
-        ORDER BY score DESC, correct DESC, name ASC
+
+        ORDER BY
+            score DESC,
+            correct DESC,
+            name ASC
+
         LIMIT ?
         """,
-        (int(limit),)
+        (
+            int(limit),
+        )
     ).fetchall()
 
     conn.close()
@@ -306,30 +411,216 @@ def add_question(
             explanation,
             enabled
         )
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1)
+
+        VALUES
+        (
+            ?,
+            ?,
+            ?,
+            ?,
+            ?,
+            ?,
+            ?,
+            ?,
+            ?,
+            ?,
+            ?,
+            1
+        )
         """,
         (
-            chapter,
-            lesson,
-            question,
-            option_a,
-            option_b,
-            option_c,
-            option_d,
-            correct,
-            score,
+            int(chapter),
+            int(lesson),
+            str(question),
+            str(option_a),
+            str(option_b),
+            str(option_c),
+            str(option_d),
+            str(correct),
+            int(score),
             source_page,
-            explanation
+            str(explanation)
         )
     )
 
     question_id = cur.lastrowid
 
     conn.commit()
+
     conn.close()
 
     return question_id
 
+
+# =========================================================
+# SEED QUESTIONS
+# =========================================================
+
+def seed_questions(questions):
+
+    conn = connect()
+
+    added = 0
+
+    skipped = 0
+
+    for q in questions:
+
+        try:
+
+            chapter = int(q["chapter"])
+
+            lesson = int(q["lesson"])
+
+            question_text = str(
+                q["question"]
+            ).strip()
+
+            option_a = str(
+                q["option_a"]
+            ).strip()
+
+            option_b = str(
+                q["option_b"]
+            ).strip()
+
+            option_c = str(
+                q["option_c"]
+            ).strip()
+
+            option_d = str(
+                q["option_d"]
+            ).strip()
+
+            correct = str(
+                q["correct"]
+            ).strip()
+
+            score = int(
+                q.get("score", 3)
+            )
+
+            source_page = q.get(
+                "source_page",
+                None
+            )
+
+            explanation = str(
+                q.get("explanation", "")
+            )
+
+            # ---------------------------------------------
+            # CHECK DUPLICATE
+            # ---------------------------------------------
+
+            exists = conn.execute(
+                """
+                SELECT id
+
+                FROM questions
+
+                WHERE
+                    chapter = ?
+
+                    AND lesson = ?
+
+                    AND question = ?
+
+                LIMIT 1
+                """,
+                (
+                    chapter,
+                    lesson,
+                    question_text
+                )
+            ).fetchone()
+
+            if exists:
+
+                skipped += 1
+
+                continue
+
+            # ---------------------------------------------
+            # INSERT QUESTION
+            # ---------------------------------------------
+
+            conn.execute(
+                """
+                INSERT INTO questions
+                (
+                    chapter,
+                    lesson,
+                    question,
+                    option_a,
+                    option_b,
+                    option_c,
+                    option_d,
+                    correct,
+                    score,
+                    source_page,
+                    explanation,
+                    enabled
+                )
+
+                VALUES
+                (
+                    ?,
+                    ?,
+                    ?,
+                    ?,
+                    ?,
+                    ?,
+                    ?,
+                    ?,
+                    ?,
+                    ?,
+                    ?,
+                    1
+                )
+                """,
+                (
+                    chapter,
+                    lesson,
+                    question_text,
+                    option_a,
+                    option_b,
+                    option_c,
+                    option_d,
+                    correct,
+                    score,
+                    source_page,
+                    explanation
+                )
+            )
+
+            added += 1
+
+        except Exception as e:
+
+            print(
+                "❌ Question seed error:",
+                repr(e)
+            )
+
+    conn.commit()
+
+    conn.close()
+
+    print(
+        f"📚 Questions added: {added}"
+    )
+
+    print(
+        f"⏭ Questions skipped: {skipped}"
+    )
+
+    return added
+
+
+# =========================================================
+# GET ONE QUESTION
+# =========================================================
 
 def get_question(question_id):
 
@@ -341,13 +632,19 @@ def get_question(question_id):
         FROM questions
         WHERE id = ?
         """,
-        (int(question_id),)
+        (
+            int(question_id),
+        )
     ).fetchone()
 
     conn.close()
 
     return row
 
+
+# =========================================================
+# GET QUESTIONS
+# =========================================================
 
 def get_questions(
     lesson=None,
@@ -360,10 +657,17 @@ def get_questions(
     query = """
         SELECT *
         FROM questions
+
         WHERE enabled = ?
     """
 
-    params = [int(enabled)]
+    params = [
+        int(enabled)
+    ]
+
+    # -----------------------------------------
+    # LESSON
+    # -----------------------------------------
 
     if lesson is not None:
 
@@ -371,7 +675,13 @@ def get_questions(
             AND lesson = ?
         """
 
-        params.append(int(lesson))
+        params.append(
+            int(lesson)
+        )
+
+    # -----------------------------------------
+    # CHAPTER
+    # -----------------------------------------
 
     if chapter is not None:
 
@@ -379,7 +689,9 @@ def get_questions(
             AND chapter = ?
         """
 
-        params.append(int(chapter))
+        params.append(
+            int(chapter)
+        )
 
     query += """
         ORDER BY id ASC
@@ -395,6 +707,10 @@ def get_questions(
     return rows
 
 
+# =========================================================
+# COUNT QUESTIONS
+# =========================================================
+
 def count_questions():
 
     conn = connect()
@@ -402,14 +718,134 @@ def count_questions():
     row = conn.execute(
         """
         SELECT COUNT(*) AS count
+
         FROM questions
+
         WHERE enabled = 1
         """
     ).fetchone()
 
     conn.close()
 
-    return int(row["count"])
+    return int(
+        row["count"]
+    )
+
+
+# =========================================================
+# COUNT QUESTIONS BY LESSON
+# =========================================================
+
+def count_questions_by_lesson(lesson):
+
+    conn = connect()
+
+    row = conn.execute(
+        """
+        SELECT COUNT(*) AS count
+
+        FROM questions
+
+        WHERE
+            lesson = ?
+
+            AND enabled = 1
+        """,
+        (
+            int(lesson),
+        )
+    ).fetchone()
+
+    conn.close()
+
+    return int(
+        row["count"]
+    )
+
+
+# =========================================================
+# COUNT QUESTIONS BY CHAPTER
+# =========================================================
+
+def count_questions_by_chapter(chapter):
+
+    conn = connect()
+
+    row = conn.execute(
+        """
+        SELECT COUNT(*) AS count
+
+        FROM questions
+
+        WHERE
+            chapter = ?
+
+            AND enabled = 1
+        """,
+        (
+            int(chapter),
+        )
+    ).fetchone()
+
+    conn.close()
+
+    return int(
+        row["count"]
+    )
+
+
+# =========================================================
+# ENABLE / DISABLE QUESTION
+# =========================================================
+
+def set_question_enabled(
+    question_id,
+    enabled
+):
+
+    conn = connect()
+
+    conn.execute(
+        """
+        UPDATE questions
+
+        SET enabled = ?
+
+        WHERE id = ?
+        """,
+        (
+            1 if enabled else 0,
+            int(question_id)
+        )
+    )
+
+    conn.commit()
+
+    conn.close()
+
+
+# =========================================================
+# DELETE QUESTION
+# =========================================================
+
+def delete_question(question_id):
+
+    conn = connect()
+
+    conn.execute(
+        """
+        DELETE FROM questions
+
+        WHERE id = ?
+        """,
+        (
+            int(question_id),
+        )
+    )
+
+    conn.commit()
+
+    conn.close()
 
 
 # =========================================================
@@ -427,15 +863,25 @@ def record_answer(
     conn = connect()
 
     user_id = str(user_id)
-    question_id = int(question_id)
 
-    # جلوگیری از جواب دادن دوباره به همان سؤال
+    question_id = int(
+        question_id
+    )
+
+    # -----------------------------------------
+    # CHECK DUPLICATE ANSWER
+    # -----------------------------------------
+
     existing = conn.execute(
         """
         SELECT id
+
         FROM answers
-        WHERE user_id = ?
-        AND question_id = ?
+
+        WHERE
+            user_id = ?
+
+            AND question_id = ?
         """,
         (
             user_id,
@@ -448,6 +894,10 @@ def record_answer(
         conn.close()
 
         return False
+
+    # -----------------------------------------
+    # SAVE ANSWER
+    # -----------------------------------------
 
     now = datetime.utcnow().isoformat()
 
@@ -462,7 +912,16 @@ def record_answer(
             score_added,
             created_at
         )
-        VALUES (?, ?, ?, ?, ?, ?)
+
+        VALUES
+        (
+            ?,
+            ?,
+            ?,
+            ?,
+            ?,
+            ?
+        )
         """,
         (
             user_id,
@@ -474,15 +933,23 @@ def record_answer(
         )
     )
 
+    # -----------------------------------------
+    # CORRECT
+    # -----------------------------------------
+
     if is_correct:
 
         conn.execute(
             """
             UPDATE students
+
             SET
                 score = score + ?,
+
                 correct = correct + 1,
+
                 total = total + 1
+
             WHERE user_id = ?
             """,
             (
@@ -491,27 +958,82 @@ def record_answer(
             )
         )
 
+    # -----------------------------------------
+    # WRONG
+    # -----------------------------------------
+
     else:
 
         conn.execute(
             """
             UPDATE students
+
             SET
                 wrong = wrong + 1,
+
                 total = total + 1
+
             WHERE user_id = ?
             """,
-            (user_id,)
+            (
+                user_id,
+            )
         )
 
     conn.commit()
+
     conn.close()
 
     return True
 
 
 # =========================================================
-# WARNINGS
+# USER ANSWER HISTORY
+# =========================================================
+
+def get_user_answers(
+    user_id,
+    limit=50
+):
+
+    conn = connect()
+
+    rows = conn.execute(
+        """
+        SELECT
+            answers.*,
+
+            questions.question,
+
+            questions.lesson,
+
+            questions.chapter
+
+        FROM answers
+
+        LEFT JOIN questions
+
+        ON answers.question_id = questions.id
+
+        WHERE answers.user_id = ?
+
+        ORDER BY answers.id DESC
+
+        LIMIT ?
+        """,
+        (
+            str(user_id),
+            int(limit)
+        )
+    ).fetchall()
+
+    conn.close()
+
+    return rows
+
+
+# =========================================================
+# WARNING SYSTEM
 # =========================================================
 
 def warn_student(user_id):
@@ -521,13 +1043,18 @@ def warn_student(user_id):
     conn.execute(
         """
         UPDATE students
+
         SET warnings = warnings + 1
+
         WHERE user_id = ?
         """,
-        (str(user_id),)
+        (
+            str(user_id),
+        )
     )
 
     conn.commit()
+
     conn.close()
 
 
@@ -538,18 +1065,51 @@ def unwarn_student(user_id):
     conn.execute(
         """
         UPDATE students
+
         SET warnings = 0
+
         WHERE user_id = ?
         """,
-        (str(user_id),)
+        (
+            str(user_id),
+        )
     )
 
     conn.commit()
+
     conn.close()
 
 
+def get_warnings(user_id):
+
+    conn = connect()
+
+    row = conn.execute(
+        """
+        SELECT warnings
+
+        FROM students
+
+        WHERE user_id = ?
+        """,
+        (
+            str(user_id),
+        )
+    ).fetchone()
+
+    conn.close()
+
+    if row is None:
+
+        return 0
+
+    return int(
+        row["warnings"] or 0
+    )
+
+
 # =========================================================
-# LOG
+# LOG SYSTEM
 # =========================================================
 
 def log(
@@ -571,16 +1131,83 @@ def log(
             details,
             created_at
         )
-        VALUES (?, ?, ?, ?, ?)
+
+        VALUES
+        (
+            ?,
+            ?,
+            ?,
+            ?,
+            ?
+        )
         """,
         (
             str(admin_id),
             str(action),
-            str(target_id) if target_id else "",
+            str(target_id)
+            if target_id else "",
+
             str(details),
+
             datetime.utcnow().isoformat()
         )
     )
 
     conn.commit()
+
     conn.close()
+
+
+# =========================================================
+# GET LOGS
+# =========================================================
+
+def get_logs(limit=50):
+
+    conn = connect()
+
+    rows = conn.execute(
+        """
+        SELECT *
+
+        FROM logs
+
+        ORDER BY id DESC
+
+        LIMIT ?
+        """,
+        (
+            int(limit),
+        )
+    ).fetchall()
+
+    conn.close()
+
+    return rows
+
+
+# =========================================================
+# DATABASE TEST
+# =========================================================
+
+if __name__ == "__main__":
+
+    print("======================================")
+    print("🗄 Database Test")
+    print("======================================")
+
+    init()
+
+    print(
+        "👥 Students:",
+        len(get_students())
+    )
+
+    print(
+        "❓ Questions:",
+        count_questions()
+    )
+
+    print("======================================")
+    print("✅ Database is ready")
+    print("======================================")
