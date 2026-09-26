@@ -5,74 +5,109 @@ from rubka import Robot, Message
 
 
 # =========================
-# تنظیمات
+# TOKEN
 # =========================
 
 TOKEN = os.getenv("BOT_TOKEN")
 
 if not TOKEN:
-    raise RuntimeError("❌ BOT_TOKEN تنظیم نشده است")
+    raise RuntimeError("BOT_TOKEN تنظیم نشده است")
 
+
+# =========================
+# BOT
+# =========================
 
 bot = Robot(token=TOKEN)
 
 
 # =========================
-# پیام‌های ربات
+# پاسخ‌های ربات
 # =========================
 
 RESPONSES = [
-    "سلام 😎🤖\nدر خدمتم! چی شده؟",
-    "جانم؟ 👀🤖",
-    "بله؟ 😎\nیار رسانه حاضر است!",
-    "سلام رفیق 🔥\nبگو ببینم چه خبره؟",
-    "در خدمتم داداش 🤖🫡",
-    "هااا؟ 😄\nصدای ربات کردی؟",
-    "اینجام 😎🔥",
-    "سلام 👋🤖\nبیا ببینیم امروز چه کاری داریم!",
+    "سلام 😎🤖 در خدمتم!",
+    "جانم؟ 👀",
+    "بله؟ 🤖 بگو ببینم!",
+    "سلام رفیق 🔥",
+    "در خدمتم داداش 🫡",
+    "اینجام 😎",
+    "صدای ربات کردی؟ 😂🤖",
+    "بله بله، یار رسانه حاضر است 📚🤖",
 ]
 
 
-# =========================
-# دریافت پیام‌های گروه
-# =========================
+# ==================================================
+# پیام‌های خصوصی
+# ==================================================
 
-@bot.on_message()
-async def handle_message(bot: Robot, message: Message):
+@bot.on_message_private()
+async def private_message(bot: Robot, message: Message):
 
     try:
+
         text = getattr(message, "text", "") or ""
         text = text.strip()
 
-        print("📩 پیام دریافت شد:", repr(text))
+        print("📩 PRIVATE:", repr(text))
 
-        # وقتی کسی در گروه می‌نویسد «ربات»
         if text == "ربات":
 
-            response = random.choice(RESPONSES)
+            answer = random.choice(RESPONSES)
 
-            print("🤖 در حال پاسخ دادن...")
+            await message.reply(answer)
 
-            await message.reply(response)
-
-            print("✅ پاسخ ارسال شد")
+            print("✅ پاسخ خصوصی ارسال شد")
 
     except Exception as e:
 
-        print("❌ MESSAGE ERROR:", repr(e))
+        print("❌ PRIVATE ERROR:", repr(e))
 
 
-# =========================
-# اجرای ربات
-# =========================
+# ==================================================
+# پیام‌های گروه
+# ==================================================
+
+@bot.on_message_group()
+async def group_message(bot: Robot, message: Message):
+
+    try:
+
+        text = getattr(message, "text", "") or ""
+        text = text.strip()
+
+        print("📩 GROUP:", repr(text))
+
+        # فقط وقتی دقیقاً نوشته شود «ربات»
+        if text == "ربات":
+
+            answer = random.choice(RESPONSES)
+
+            print("🤖 پاسخ به گروه:", answer)
+
+            await message.reply(answer)
+
+            print("✅ پاسخ گروه ارسال شد")
+
+    except Exception as e:
+
+        print("❌ GROUP ERROR:", repr(e))
+
+
+# ==================================================
+# START
+# ==================================================
 
 print("======================================")
 print("🤖 یار رسانه")
-print("📚 ربات تفکر و سواد رسانه‌ای")
+print("📚 تفکر و سواد رسانه‌ای")
 print("🚀 Rubka Bot")
 print("======================================")
-print("🟢 ربات در حال اجراست...")
+print("🟢 ربات آماده است")
+print("📩 پیام خصوصی: فعال")
+print("👥 پیام گروه: فعال")
 print("======================================")
 
 
+# اجرای ربات
 bot.run()
