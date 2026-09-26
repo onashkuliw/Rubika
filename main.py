@@ -1,40 +1,32 @@
-# ============================================================
-# یار رسانه | ربات تفکر و سواد رسانه‌ای پایه دهم
-# Rubika Bot - Rubka
-# ============================================================
-
-import asyncio
 import os
-import sqlite3
-from datetime import datetime
+import random
+import traceback
 
 from rubka import Robot, Message
 from rubka.button import InlineBuilder
 
 import config
+import database
+from questions import QUESTIONS
 
 
-# ============================================================
-# تنظیمات
-# ============================================================
+# =========================================================
+# STARTUP
+# =========================================================
 
-BOT_NAME = getattr(config, "BOT_NAME", "یار رسانه")
-DB_PATH = getattr(config, "DATABASE_PATH", "bot.db")
-ADMIN_ID = str(config.ADMIN_ID)
-
-DEFAULT_SCORE = int(getattr(config, "DEFAULT_SCORE", 3))
-
-
-# ============================================================
-# ساخت ربات
-# ============================================================
+database.init()
 
 bot = Robot(token=config.BOT_TOKEN)
 
+ADMIN_ID = str(config.ADMIN_ID)
 
-# ============================================================
-# فصل‌های کتاب
-# ============================================================
+DEFAULT_SCORE = int(os.getenv("DEFAULT_SCORE", "3"))
+BOT_NAME = os.getenv("BOT_NAME", "یار رسانه")
+
+
+# =========================================================
+# CHAPTERS / LESSONS
+# =========================================================
 
 CHAPTERS = {
     1: "ما و رسانه‌ها",
@@ -45,1334 +37,971 @@ CHAPTERS = {
     6: "رژیم مصرف رسانه‌ای",
 }
 
-
-# ============================================================
-# درس‌های کتاب
-# ============================================================
-
 LESSONS = {
-    1: "درس ۱ - رسانه چیست؟",
-    2: "درس ۲ - پیام‌های رسانه‌ای",
-    3: "درس ۳ - ارتباط و رسانه",
-    4: "درس ۴ - عناصر پیام رسانه‌ای",
-    5: "درس ۵ - قالب‌های رسانه‌ای",
-    6: "درس ۶ - زبان رسانه",
-    7: "درس ۷ - تفکر سریع و کند",
-    8: "درس ۸ - نادیده‌های رسانه",
-    9: "درس ۹ - متن و فرامتن",
-    10: "درس ۱۰ - واقعیت رسانه‌ای",
-    11: "درس ۱۱ - مخاطب",
-    12: "درس ۱۲ - مخاطب فعال",
-    13: "درس ۱۳ - تحلیل مخاطب",
-    14: "درس ۱۴ - رسانه و زندگی",
-    15: "درس ۱۵ - سبک زندگی رسانه‌ای",
-    16: "درس ۱۶ - رسانه و خانواده",
-    17: "درس ۱۷ - رسانه و هویت",
-    18: "درس ۱۸ - رسانه و الگوهای زندگی",
-    19: "درس ۱۹ - مصرف رسانه‌ای",
-    20: "درس ۲۰ - مدیریت مصرف رسانه‌ای",
+    1: "مسابقه رسانه‌ها با زمان",
+    2: "آن سوی متن",
+    3: "پنجگانه سواد رسانه‌ای",
+
+    4: "تصاویر بی‌طرف نیستند",
+    5: "از بازنمایی تا کلیشه",
+    6: "فنون اقناع",
+    7: "ذهن فریب‌پذیر",
+
+    8: "مهندسان پیام",
+    9: "بازیگردانان بزرگ",
+    10: "دروازه‌بانی خبر",
+
+    11: "مخاطب خاص",
+    12: "مخاطب فعال یا منفعل",
+    13: "حقوق مخاطب",
+
+    14: "هر چیز که در جستن آنی، آنی",
+    15: "کلیشه بدن",
+    16: "بازی، جدی است",
+    17: "زندگی دوم",
+    18: "علیه اخبار جعلی",
+
+    19: "سلامت رسانه‌ای",
+    20: "اخلاق رسانه‌ای",
 }
 
 
-# ============================================================
-# دیتابیس
-# ============================================================
+LESSON_CHAPTER = {
+    1: 1, 2: 1, 3: 1,
+    4: 2, 5: 2, 6: 2, 7: 2,
+    8: 3, 9: 3, 10: 3,
+    11: 4, 12: 4, 13: 4,
+    14: 5, 15: 5, 16: 5, 17: 5, 18: 5,
+    19: 6, 20: 6,
+}
+
+
+# صفحات شروع درس‌ها طبق فهرست کتاب
+LESSON_PAGES = {
+    1: 12,
+    2: 19,
+    3: 24,
+
+    4: 32,
+    5: 39,
+    6: 45,
+    7: 57,
+
+    8: 66,
+    9: 73,
+    10: 81,
+
+    11: 92,
+    12: 99,
+    13: 109,
+
+    14: 118,
+    15: 125,
+    16: 130,
+    17: 140,
+    18: 145,
+
+    19: 154,
+    20: 164,
+}
+
+
+# =========================================================
+# HELPERS
+# =========================================================
+
+def sid(value):
+    return str(value)
 
-def db():
-    return sqlite3.connect(DB_PATH)
-
-
-def init_database():
-    conn = db()
-    cur = conn.cursor()
-
-    cur.execute("""
-        CREATE TABLE IF NOT EXISTS students (
-            user_id TEXT PRIMARY KEY,
-            name TEXT NOT NULL,
-            score INTEGER DEFAULT 0,
-            correct INTEGER DEFAULT 0,
-            wrong INTEGER DEFAULT 0,
-            total INTEGER DEFAULT 0,
-            warnings INTEGER DEFAULT 0,
-            registered_at TEXT
-        )
-    """)
-
-    cur.execute("""
-        CREATE TABLE IF NOT EXISTS questions (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            chapter INTEGER,
-            lesson INTEGER,
-            question TEXT NOT NULL,
-            option_a TEXT NOT NULL,
-            option_b TEXT NOT NULL,
-            option_c TEXT NOT NULL,
-            option_d TEXT NOT NULL,
-            correct TEXT NOT NULL,
-            score INTEGER DEFAULT 3,
-            source_page INTEGER,
-            explanation TEXT,
-            enabled INTEGER DEFAULT 1
-        )
-    """)
-
-    cur.execute("""
-        CREATE TABLE IF NOT EXISTS answers (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            user_id TEXT,
-            question_id INTEGER,
-            answer TEXT,
-            is_correct INTEGER,
-            score_added INTEGER,
-            created_at TEXT,
-            UNIQUE(user_id, question_id)
-        )
-    """)
-
-    cur.execute("""
-        CREATE TABLE IF NOT EXISTS settings (
-            key TEXT PRIMARY KEY,
-            value TEXT
-        )
-    """)
-
-    cur.execute("""
-        CREATE TABLE IF NOT EXISTS logs (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            admin_id TEXT,
-            action TEXT,
-            target_id TEXT,
-            details TEXT,
-            created_at TEXT
-        )
-    """)
-
-    conn.commit()
-    conn.close()
-
-
-# ============================================================
-# دانش‌آموز
-# ============================================================
-
-def get_student(user_id):
-    conn = db()
-    cur = conn.cursor()
-
-    cur.execute(
-        "SELECT user_id,name,score,correct,wrong,total,warnings "
-        "FROM students WHERE user_id=?",
-        (str(user_id),)
-    )
-
-    row = cur.fetchone()
-    conn.close()
-
-    return row
-
-
-def add_student(user_id, name):
-    conn = db()
-    cur = conn.cursor()
-
-    cur.execute("""
-        INSERT OR REPLACE INTO students
-        (user_id,name,score,correct,wrong,total,warnings,registered_at)
-        VALUES (
-            ?,
-            ?,
-            COALESCE((SELECT score FROM students WHERE user_id=?),0),
-            COALESCE((SELECT correct FROM students WHERE user_id=?),0),
-            COALESCE((SELECT wrong FROM students WHERE user_id=?),0),
-            COALESCE((SELECT total FROM students WHERE user_id=?),0),
-            COALESCE((SELECT warnings FROM students WHERE user_id=?),0),
-            COALESCE(
-                (SELECT registered_at FROM students WHERE user_id=?),
-                ?
-            )
-        )
-    """, (
-        str(user_id),
-        name,
-        str(user_id),
-        str(user_id),
-        str(user_id),
-        str(user_id),
-        str(user_id),
-        str(user_id),
-        datetime.now().isoformat()
-    ))
-
-    conn.commit()
-    conn.close()
-
-
-def delete_student(user_id):
-    conn = db()
-    cur = conn.cursor()
-
-    cur.execute(
-        "DELETE FROM students WHERE user_id=?",
-        (str(user_id),)
-    )
-
-    conn.commit()
-    conn.close()
-
-
-def get_students():
-    conn = db()
-    cur = conn.cursor()
-
-    cur.execute("""
-        SELECT user_id,name,score,correct,wrong,total,warnings
-        FROM students
-        ORDER BY score DESC, correct DESC
-    """)
-
-    rows = cur.fetchall()
-    conn.close()
-
-    return rows
-
-
-def get_leaderboard():
-    return get_students()
-
-
-# ============================================================
-# سؤال‌ها
-# ============================================================
-
-def get_question(question_id):
-    conn = db()
-    cur = conn.cursor()
-
-    cur.execute("""
-        SELECT
-            id,
-            chapter,
-            lesson,
-            question,
-            option_a,
-            option_b,
-            option_c,
-            option_d,
-            correct,
-            score,
-            source_page,
-            explanation,
-            enabled
-        FROM questions
-        WHERE id=? AND enabled=1
-    """, (question_id,))
-
-    row = cur.fetchone()
-    conn.close()
-
-    return row
-
-
-def get_questions(lesson=None):
-    conn = db()
-    cur = conn.cursor()
-
-    if lesson is None:
-        cur.execute("""
-            SELECT *
-            FROM questions
-            WHERE enabled=1
-            ORDER BY id
-        """)
-    else:
-        cur.execute("""
-            SELECT *
-            FROM questions
-            WHERE lesson=? AND enabled=1
-            ORDER BY id
-        """, (lesson,))
-
-    rows = cur.fetchall()
-    conn.close()
-
-    return rows
-
-
-def question_count():
-    conn = db()
-    cur = conn.cursor()
-
-    cur.execute(
-        "SELECT COUNT(*) FROM questions WHERE enabled=1"
-    )
-
-    count = cur.fetchone()[0]
-    conn.close()
-
-    return count
-
-
-# ============================================================
-# ثبت پاسخ
-# ============================================================
-
-def answer_question(user_id, question_id, answer):
-    conn = db()
-    cur = conn.cursor()
-
-    cur.execute("""
-        SELECT id
-        FROM answers
-        WHERE user_id=? AND question_id=?
-    """, (str(user_id), question_id))
-
-    already = cur.fetchone()
-
-    if already:
-        conn.close()
-        return None
-
-    question = get_question(question_id)
-
-    if not question:
-        conn.close()
-        return None
-
-    correct_answer = str(question[8]).lower()
-    score = int(question[9] or DEFAULT_SCORE)
-
-    is_correct = str(answer).lower() == correct_answer
-    score_added = score if is_correct else 0
-
-    cur.execute("""
-        INSERT INTO answers
-        (user_id,question_id,answer,is_correct,score_added,created_at)
-        VALUES (?,?,?,?,?,?)
-    """, (
-        str(user_id),
-        question_id,
-        str(answer),
-        1 if is_correct else 0,
-        score_added,
-        datetime.now().isoformat()
-    ))
-
-    if is_correct:
-        cur.execute("""
-            UPDATE students
-            SET
-                score=score+?,
-                correct=correct+1,
-                total=total+1
-            WHERE user_id=?
-        """, (score_added, str(user_id)))
-    else:
-        cur.execute("""
-            UPDATE students
-            SET
-                wrong=wrong+1,
-                total=total+1
-            WHERE user_id=?
-        """, (str(user_id),))
-
-    conn.commit()
-    conn.close()
-
-    return {
-        "correct": is_correct,
-        "score": score_added,
-        "correct_answer": correct_answer,
-        "question": question
-    }
-
-
-# ============================================================
-# تنظیمات ربات
-# ============================================================
-
-def set_setting(key, value):
-    conn = db()
-    cur = conn.cursor()
-
-    cur.execute("""
-        INSERT OR REPLACE INTO settings(key,value)
-        VALUES (?,?)
-    """, (key, str(value)))
-
-    conn.commit()
-    conn.close()
-
-
-def get_setting(key, default=None):
-    conn = db()
-    cur = conn.cursor()
-
-    cur.execute(
-        "SELECT value FROM settings WHERE key=?",
-        (key,)
-    )
-
-    row = cur.fetchone()
-    conn.close()
-
-    if row:
-        return row[0]
-
-    return default
-
-
-# ============================================================
-# تشخیص ادمین
-# ============================================================
 
 def is_admin(user_id):
-    return str(user_id) == str(ADMIN_ID)
+    return sid(user_id) == ADMIN_ID
 
 
-def admin_only(message):
-    if not is_admin(message.sender_id):
+def safe_text(message):
+    return (getattr(message, "text", "") or "").strip()
+
+
+def get_sender_id(message):
+    return sid(getattr(message, "sender_id", "") or "")
+
+
+def get_chat_id(message):
+    return sid(getattr(message, "chat_id", "") or "")
+
+
+def get_student(user_id):
+    return database.get_student(sid(user_id))
+
+
+def is_registered(user_id):
+    return get_student(user_id) is not None
+
+
+def register_required(message):
+    user_id = get_sender_id(message)
+
+    if not is_registered(user_id):
         message.reply(
-            "⛔ این بخش فقط برای مالک ربات است."
+            "⚠️ شما هنوز در لیست دانش‌آموزان ثبت نشده‌اید.\n\n"
+            "از مدیر بخواهید شما را با شناسه کاربری‌تان ثبت کند."
         )
         return False
 
     return True
 
 
-# ============================================================
-# کیبورد سؤال
-# ============================================================
-
-def question_keyboard(question_id):
+def question_keyboard(question):
     builder = InlineBuilder()
 
-    keyboard = (
-        builder
-        .row(
-            builder.button_simple(
-                id=f"q:{question_id}:a",
-                text="🅰️ گزینه اول"
-            ),
-            builder.button_simple(
-                id=f"q:{question_id}:b",
-                text="🅱️ گزینه دوم"
-            )
+    builder = builder.row(
+        builder.button_simple(
+            f"q:{question['id']}:a",
+            f"🅰️ {question['option_a']}"
         )
-        .row(
-            builder.button_simple(
-                id=f"q:{question_id}:c",
-                text="©️ گزینه سوم"
-            ),
-            builder.button_simple(
-                id=f"q:{question_id}:d",
-                text="🆎 گزینه چهارم"
-            )
-        )
-        .build()
     )
 
-    return keyboard
+    builder = builder.row(
+        builder.button_simple(
+            f"q:{question['id']}:b",
+            f"🅱️ {question['option_b']}"
+        )
+    )
+
+    builder = builder.row(
+        builder.button_simple(
+            f"q:{question['id']}:c",
+            f"©️ {question['option_c']}"
+        )
+    )
+
+    builder = builder.row(
+        builder.button_simple(
+            f"q:{question['id']}:d",
+            f"🅳 {question['option_d']}"
+        )
+    )
+
+    return builder.build()
 
 
-# ============================================================
-# نمایش سؤال
-# ============================================================
+def question_text(question):
+    lesson = question.get("lesson", "")
+    chapter = question.get("chapter", "")
+    page = question.get("source_page", "")
+
+    return (
+        "📚 **سؤال تفکر و سواد رسانه‌ای**\n\n"
+        f"📖 فصل: {chapter}\n"
+        f"📘 درس: {lesson}\n\n"
+        f"❓ {question['question']}\n\n"
+        f"📌 منبع: صفحه {page}"
+    )
+
+
+def normalize_answer(value):
+    value = str(value).strip().lower()
+
+    mapping = {
+        "a": "a",
+        "b": "b",
+        "c": "c",
+        "d": "d",
+
+        "الف": "a",
+        "ب": "b",
+        "ج": "c",
+        "د": "d",
+    }
+
+    return mapping.get(value, value)
+
+
+def correct_option_text(question):
+    correct = normalize_answer(question["correct"])
+
+    options = {
+        "a": question["option_a"],
+        "b": question["option_b"],
+        "c": question["option_c"],
+        "d": question["option_d"],
+    }
+
+    return options.get(correct, "نامشخص")
+
+
+def get_random_question(lesson=None):
+    try:
+        if lesson is not None:
+            rows = database.get_questions(
+                lesson=int(lesson),
+                enabled=1
+            )
+        else:
+            rows = database.get_questions(
+                enabled=1
+            )
+
+        if not rows:
+            return None
+
+        row = random.choice(rows)
+
+        if isinstance(row, dict):
+            return row
+
+        return dict(row)
+
+    except Exception:
+        traceback.print_exc()
+        return None
+
 
 def send_question(message, lesson=None):
+    question = get_random_question(lesson)
 
-    student = get_student(message.sender_id)
-
-    if not student:
+    if not question:
         message.reply(
-            "⛔ شما هنوز توسط مدیر ثبت نشده‌اید.\n\n"
-            "از مدیر بخواهید شما را با دستور زیر ثبت کند:\n"
+            "❌ فعلاً برای این درس سؤال ثبت نشده است."
+        )
+        return
+
+    text = question_text(question)
+
+    try:
+        message.reply(
+            text,
+            inline_keypad=question_keyboard(question)
+        )
+    except Exception:
+        # بعضی نسخه‌های Rubka پارامتر را متفاوت می‌گیرند.
+        try:
+            message.reply(
+                text,
+                inline_keypad=question_keyboard(question)
+            )
+        except Exception as e:
+            print("QUESTION SEND ERROR:", repr(e))
+            message.reply(text)
+
+
+# =========================================================
+# START
+# =========================================================
+
+@bot.on_message(commands=["start"])
+def start(bot, message):
+
+    message.reply(
+        f"🔥 {BOT_NAME}\n\n"
+        "سلام! من یار رسانه هستم 🤖📚\n\n"
+        "برای شروع می‌تونی بنویسی:\n"
+        "• سوال\n"
+        "• سوال ۳\n"
+        "• امتیاز\n"
+        "• جدول\n"
+        "• راهنما\n\n"
+        "موفق باشی دانش‌آموز رسانه‌ای 😎"
+    )
+
+
+# =========================================================
+# HELP
+# =========================================================
+
+@bot.on_message(commands=["help"])
+def help_command(bot, message):
+
+    message.reply(
+        "📚 راهنمای یار رسانه\n\n"
+        "📝 سوال\n"
+        "یک سؤال تصادفی از کتاب\n\n"
+        "📝 سوال ۳\n"
+        "سؤال از درس ۳\n\n"
+        "🏆 امتیاز\n"
+        "مشاهده امتیاز شما\n\n"
+        "🏆 جدول\n"
+        "مشاهده رتبه‌بندی کلاس\n\n"
+        "🤖 ربات\n"
+        "سلام کردن به ربات\n\n"
+        "مدیر:\n"
+        "/admin"
+    )
+
+
+# =========================================================
+# CALLBACK / ANSWERS
+# =========================================================
+
+@bot.on_callback()
+def callback_handler(bot, message):
+
+    try:
+
+        aux = getattr(message, "aux_data", None)
+
+        if not aux:
+            return
+
+        button_id = getattr(aux, "button_id", "") or ""
+
+        if not button_id.startswith("q:"):
+            return
+
+        parts = button_id.split(":")
+
+        if len(parts) != 3:
+            return
+
+        question_id = int(parts[1])
+        selected = normalize_answer(parts[2])
+
+        user_id = get_sender_id(message)
+
+        if not is_registered(user_id):
+
+            message.reply(
+                "⚠️ شما هنوز ثبت‌نام نشده‌اید.\n"
+                "از مدیر بخواهید ابتدا شما را ثبت کند."
+            )
+            return
+
+        question = database.get_question(question_id)
+
+        if not question:
+
+            message.reply("❌ این سؤال پیدا نشد.")
+            return
+
+        # تبدیل sqlite row به dict
+        try:
+            question = dict(question)
+        except Exception:
+            pass
+
+        correct = normalize_answer(question["correct"])
+
+        if selected == correct:
+
+            score = int(
+                question.get(
+                    "score",
+                    DEFAULT_SCORE
+                ) or DEFAULT_SCORE
+            )
+
+            database.record_answer(
+                user_id,
+                question_id,
+                selected,
+                True,
+                score
+            )
+
+            message.reply(
+                "🎉 پاسخ درست بود!\n\n"
+                f"✅ گزینه صحیح: {correct.upper()}\n"
+                f"📌 پاسخ: {correct_option_text(question)}\n\n"
+                f"⭐ امتیاز شما: +{score}\n\n"
+                f"📖 منبع: صفحه {question.get('source_page', '-')}\n"
+                f"📚 درس: {question.get('lesson', '-')}"
+            )
+
+        else:
+
+            database.record_answer(
+                user_id,
+                question_id,
+                selected,
+                False,
+                0
+            )
+
+            message.reply(
+                "❌ پاسخ اشتباه بود.\n\n"
+                f"✅ پاسخ صحیح: گزینه {correct.upper()}\n"
+                f"📌 {correct_option_text(question)}\n\n"
+                f"📖 منبع: صفحه {question.get('source_page', '-')}\n"
+                f"📚 درس: {question.get('lesson', '-')}"
+            )
+
+    except Exception as e:
+
+        print("CALLBACK ERROR:", repr(e))
+        traceback.print_exc()
+
+        try:
+            message.reply(
+                "❌ هنگام بررسی پاسخ مشکلی پیش آمد."
+            )
+        except Exception:
+            pass
+
+
+# =========================================================
+# GROUP MESSAGES
+# =========================================================
+
+@bot.on_message_group()
+def group_message(bot, message):
+
+    try:
+
+        text = safe_text(message)
+        user_id = get_sender_id(message)
+        chat_id = get_chat_id(message)
+
+        print(
+            f"👥 GROUP | chat={chat_id} "
+            f"user={user_id} text={text!r}"
+        )
+
+        if not text:
+            return
+
+        # -----------------------------------------
+        # ربات
+        # -----------------------------------------
+
+        if text.lower() in ["ربات", "بات", "یار رسانه"]:
+
+            message.reply(
+                random.choice([
+                    "سلام 😎🤖 در خدمتم!",
+                    "جانم؟ 👀",
+                    "بله؟ 🤖 بگو ببینم!",
+                    "یار رسانه حاضر است 🔥📚",
+                    "در خدمتم 🫡",
+                ])
+            )
+            return
+
+        # -----------------------------------------
+        # راهنما
+        # -----------------------------------------
+
+        if text in ["راهنما", "کمک", "help"]:
+
+            message.reply(
+                "📚 راهنمای سریع\n\n"
+                "📝 سوال ← سؤال تصادفی\n"
+                "📝 سوال ۵ ← سؤال از درس ۵\n"
+                "🏆 امتیاز ← امتیاز شما\n"
+                "🏆 جدول ← رتبه‌بندی کلاس\n"
+                "🤖 ربات ← صدا زدن من"
+            )
+            return
+
+        # -----------------------------------------
+        # امتیاز
+        # -----------------------------------------
+
+        if text in ["امتیاز", "نمره", "امتیاز من"]:
+
+            if not register_required(message):
+                return
+
+            student = get_student(user_id)
+
+            message.reply(
+                "🏆 آمار شما\n\n"
+                f"👤 {student['name']}\n"
+                f"⭐ امتیاز: {student['score']}\n"
+                f"✅ درست: {student['correct']}\n"
+                f"❌ غلط: {student['wrong']}\n"
+                f"📝 پاسخ‌ها: {student['total']}"
+            )
+            return
+
+        # -----------------------------------------
+        # جدول
+        # -----------------------------------------
+
+        if text in ["جدول", "رتبه", "رتبه بندی", "رتبه‌بندی"]:
+
+            rows = database.leaderboard(limit=20)
+
+            if not rows:
+
+                message.reply(
+                    "🏆 هنوز کسی امتیازی ثبت نکرده است."
+                )
+                return
+
+            output = "🏆 جدول امتیازات کلاس\n\n"
+
+            medals = ["🥇", "🥈", "🥉"]
+
+            for index, row in enumerate(rows, start=1):
+
+                try:
+                    name = row["name"]
+                    score = row["score"]
+                except Exception:
+                    name = row[1]
+                    score = row[2]
+
+                medal = medals[index - 1] if index <= 3 else f"{index}."
+
+                output += (
+                    f"{medal} {name} — ⭐ {score}\n"
+                )
+
+            message.reply(output)
+            return
+
+        # -----------------------------------------
+        # سوال
+        # -----------------------------------------
+
+        normalized = text.replace("سؤال", "سوال").strip()
+
+        if normalized == "سوال":
+
+            if not register_required(message):
+                return
+
+            send_question(message)
+            return
+
+        if normalized.startswith("سوال "):
+
+            if not register_required(message):
+                return
+
+            value = normalized.replace("سوال ", "", 1).strip()
+
+            if value.isdigit():
+
+                lesson = int(value)
+
+                if lesson not in LESSONS:
+
+                    message.reply(
+                        "❌ شماره درس باید بین ۱ تا ۲۰ باشد."
+                    )
+                    return
+
+                send_question(message, lesson)
+                return
+
+        # -----------------------------------------
+        # پیام عادی
+        # -----------------------------------------
+
+        # فقط برای کلمه‌های مشخص جواب می‌دهیم
+        # تا ربات وسط صحبت کلاس مزاحم نشود.
+
+    except Exception as e:
+
+        print("GROUP ERROR:", repr(e))
+        traceback.print_exc()
+
+
+# =========================================================
+# ADMIN COMMANDS
+# =========================================================
+
+@bot.on_message(commands=["admin"])
+def admin_panel(bot, message):
+
+    user_id = get_sender_id(message)
+
+    if not is_admin(user_id):
+
+        message.reply(
+            "⛔ این بخش فقط برای مدیر ربات است."
+        )
+        return
+
+    message.reply(
+        "👑 پنل مدیریت\n\n"
+        "/students\n"
+        "لیست دانش‌آموزان\n\n"
+        "/stats\n"
+        "آمار ربات\n\n"
+        "/addstudent USER_ID NAME\n"
+        "ثبت دانش‌آموز\n\n"
+        "/delstudent USER_ID\n"
+        "حذف دانش‌آموز\n\n"
+        "/setlesson CHAPTER LESSON\n"
+        "تنظیم درس فعال\n\n"
+        "/warn USER_ID\n"
+        "ثبت اخطار\n\n"
+        "/unwarn USER_ID\n"
+        "حذف اخطار\n\n"
+        "/addq ...\n"
+        "افزودن سؤال"
+    )
+
+
+# =========================================================
+# ADD STUDENT
+# =========================================================
+
+@bot.on_message(commands=["addstudent"])
+def add_student(bot, message):
+
+    if not is_admin(get_sender_id(message)):
+        message.reply("⛔ دسترسی ندارید.")
+        return
+
+    args = getattr(message, "args", []) or []
+
+    if len(args) < 2:
+
+        message.reply(
+            "فرمت:\n"
             "/addstudent USER_ID NAME"
         )
         return
 
-    questions = get_questions(lesson)
+    user_id = args[0]
+    name = " ".join(args[1:])
 
-    if not questions:
-        message.reply(
-            "⚠️ فعلاً برای این درس سؤالی ثبت نشده است."
-        )
-        return
-
-    # انتخاب سؤال
-    # برای جلوگیری از سؤال تکراری، سؤال‌هایی که کاربر قبلاً جواب داده را حذف می‌کنیم.
-    conn = db()
-    cur = conn.cursor()
-
-    cur.execute("""
-        SELECT question_id
-        FROM answers
-        WHERE user_id=?
-    """, (str(message.sender_id),))
-
-    answered = {row[0] for row in cur.fetchall()}
-
-    conn.close()
-
-    available = [
-        q for q in questions
-        if q[0] not in answered
-    ]
-
-    if not available:
-        message.reply(
-            "🎉 آفرین!\n"
-            "شما تمام سؤال‌های این بخش را پاسخ داده‌اید."
-        )
-        return
-
-    question = available[0]
-
-    qid = question[0]
-    chapter = question[1]
-    lesson_number = question[2]
-    text = question[3]
-
-    a = question[4]
-    b = question[5]
-    c = question[6]
-    d = question[7]
-
-    source_page = question[10]
-
-    lesson_name = LESSONS.get(
-        lesson_number,
-        f"درس {lesson_number}"
-    )
-
-    chapter_name = CHAPTERS.get(
-        chapter,
-        f"فصل {chapter}"
-    )
-
-    msg = (
-        f"📚 {chapter_name}\n"
-        f"📖 {lesson_name}\n\n"
-        f"❓ {text}\n\n"
-        f"🅰️ {a}\n"
-        f"🅱️ {b}\n"
-        f"©️ {c}\n"
-        f"🆎 {d}\n\n"
-        f"🏆 امتیاز سؤال: {question[9]} نمره\n"
-        f"📄 منبع: صفحه {source_page}\n\n"
-        f"👇 جواب درست رو انتخاب کن:"
-    )
-
-    message.reply_inline(
-        msg,
-        question_keyboard(qid)
-    )
-
-
-# ============================================================
-# /start
-# ============================================================
-
-@bot.on_message(commands=["start"])
-async def start(bot, message: Message):
-
-    student = get_student(message.sender_id)
-
-    if student:
-        message.reply(
-            f"🔥 سلام {student[1]}!\n\n"
-            f"به «{BOT_NAME}» خوش اومدی 📚\n\n"
-            f"🧠 آماده‌ای دانشت رو امتحان کنی؟\n\n"
-            f"📝 سوال\n"
-            f"🏆 امتیاز\n"
-            f"📊 جدول\n"
-            f"👤 من"
-        )
-    else:
-        message.reply(
-            f"🔥 به «{BOT_NAME}» خوش اومدی!\n\n"
-            "📚 ربات درس تفکر و سواد رسانه‌ای پایه دهم\n\n"
-            "⚠️ برای شرکت در مسابقه باید ابتدا توسط مدیر ثبت شوی."
-        )
-
-
-# ============================================================
-# /help
-# ============================================================
-
-@bot.on_message(commands=["help"])
-async def help_command(bot, message: Message):
-
-    text = (
-        "📚 راهنمای یار رسانه\n\n"
-        "📝 سوال\n"
-        "دریافت سؤال جدید\n\n"
-        "📝 سوال 5\n"
-        "دریافت سؤال از درس ۵\n\n"
-        "🏆 امتیاز\n"
-        "نمایش امتیاز شما\n\n"
-        "📊 جدول\n"
-        "نمایش جدول امتیازات\n\n"
-        "👤 من\n"
-        "نمایش آمار شما\n"
-    )
-
-    if is_admin(message.sender_id):
-        text += (
-            "\n👑 دستورات مدیر:\n\n"
-            "/addstudent USER_ID NAME\n"
-            "/delstudent USER_ID\n"
-            "/students\n"
-            "/stats\n"
-            "/setlesson CHAPTER LESSON\n"
-            "/addq ...\n"
-            "/warn USER_ID\n"
-            "/unwarn USER_ID\n"
-            "/delmsg MESSAGE_ID\n"
-        )
-
-    message.reply(text)
-
-
-# ============================================================
-# سوال
-# ============================================================
-
-@bot.on_message(commands=["question", "q"])
-async def question_command(bot, message: Message):
-
-    active_lesson = get_setting("active_lesson")
-
-    if active_lesson:
-        try:
-            active_lesson = int(active_lesson)
-        except:
-            active_lesson = None
-
-    send_question(message, active_lesson)
-
-
-# ============================================================
-# امتیاز
-# ============================================================
-
-@bot.on_message(commands=["score"])
-async def score_command(bot, message: Message):
-
-    student = get_student(message.sender_id)
-
-    if not student:
-        message.reply("⛔ شما هنوز ثبت نشده‌اید.")
-        return
+    database.add_student(user_id, name)
 
     message.reply(
-        f"👤 {student[1]}\n\n"
-        f"🏆 امتیاز: {student[2]}\n"
-        f"✅ درست: {student[3]}\n"
-        f"❌ غلط: {student[4]}\n"
-        f"📝 پاسخ داده‌شده: {student[5]}\n"
-        f"⚠️ اخطار: {student[6]}"
-    )
-
-
-# ============================================================
-# من
-# ============================================================
-
-@bot.on_message(commands=["me"])
-async def me_command(bot, message: Message):
-
-    student = get_student(message.sender_id)
-
-    if not student:
-        message.reply("⛔ شما هنوز ثبت نشده‌اید.")
-        return
-
-    message.reply(
-        "👤 پروفایل شما\n\n"
-        f"نام: {student[1]}\n"
-        f"🆔 آیدی: {student[0]}\n\n"
-        f"🏆 امتیاز: {student[2]}\n"
-        f"✅ پاسخ صحیح: {student[3]}\n"
-        f"❌ پاسخ غلط: {student[4]}\n"
-        f"📚 تعداد پاسخ: {student[5]}\n"
-        f"⚠️ اخطار: {student[6]}"
-    )
-
-
-# ============================================================
-# جدول امتیازات
-# ============================================================
-
-@bot.on_message(commands=["leaderboard", "table"])
-async def leaderboard_command(bot, message: Message):
-
-    students = get_leaderboard()
-
-    if not students:
-        message.reply(
-            "📊 هنوز هیچ دانش‌آموزی ثبت نشده است."
-        )
-        return
-
-    text = "🏆 جدول امتیازات\n\n"
-
-    medals = ["🥇", "🥈", "🥉"]
-
-    for index, student in enumerate(students, start=1):
-
-        medal = medals[index - 1] if index <= 3 else f"{index}."
-
-        text += (
-            f"{medal} {student[1]}\n"
-            f"   🏆 {student[2]} امتیاز\n"
-            f"   ✅ {student[3]} درست | ❌ {student[4]} غلط\n\n"
-        )
-
-    message.reply(text)
-
-
-# ============================================================
-# پاسخ به دکمه‌های سؤال
-# ============================================================
-
-@bot.on_callback()
-async def callback_handler(bot, message: Message):
-
-    try:
-        button_id = message.aux_data.button_id
-    except Exception:
-        return
-
-    if not button_id:
-        return
-
-    if not button_id.startswith("q:"):
-        return
-
-    parts = button_id.split(":")
-
-    if len(parts) != 3:
-        return
-
-    try:
-        question_id = int(parts[1])
-    except:
-        return
-
-    answer = parts[2].lower()
-
-    student = get_student(message.sender_id)
-
-    if not student:
-        message.reply(
-            "⛔ شما هنوز توسط مدیر ثبت نشده‌اید."
-        )
-        return
-
-    result = answer_question(
-        message.sender_id,
-        question_id,
-        answer
-    )
-
-    if result is None:
-        message.reply(
-            "⚠️ این سؤال قبلاً توسط شما پاسخ داده شده یا وجود ندارد."
-        )
-        return
-
-    question = result["question"]
-
-    correct_answer = result["correct_answer"]
-
-    answer_names = {
-        "a": "گزینه اول",
-        "b": "گزینه دوم",
-        "c": "گزینه سوم",
-        "d": "گزینه چهارم",
-    }
-
-    correct_name = answer_names.get(
-        correct_answer,
-        correct_answer
-    )
-
-    if result["correct"]:
-
-        new_student = get_student(message.sender_id)
-
-        message.reply(
-            "🎉 آفرین! پاسخ درست بود.\n\n"
-            f"✅ پاسخ صحیح: {correct_name}\n"
-            f"🏆 امتیاز این سؤال: +{result['score']}\n"
-            f"💰 امتیاز فعلی شما: {new_student[2]}\n\n"
-            f"📄 منبع: صفحه {question[10]}\n"
-            f"📚 {LESSONS.get(question[2], f'درس {question[2]}')}"
-        )
-
-        if question[11]:
-            message.reply(
-                f"💡 توضیح:\n{question[11]}"
-            )
-
-    else:
-
-        new_student = get_student(message.sender_id)
-
-        message.reply(
-            "❌ پاسخ اشتباه بود.\n\n"
-            f"✅ پاسخ صحیح: {correct_name}\n"
-            f"🏆 امتیاز این سؤال: +0\n"
-            f"💰 امتیاز فعلی شما: {new_student[2]}\n\n"
-            f"📄 منبع: صفحه {question[10]}"
-        )
-
-        if question[11]:
-            message.reply(
-                f"💡 توضیح:\n{question[11]}"
-            )
-
-
-# ============================================================
-# افزودن دانش‌آموز
-# ============================================================
-
-@bot.on_message(commands=["addstudent"])
-async def addstudent_command(bot, message: Message):
-
-    if not admin_only(message):
-        return
-
-    text = (message.text or "").strip()
-
-    parts = text.split(maxsplit=2)
-
-    if len(parts) < 3:
-        message.reply(
-            "❌ فرمت اشتباه است.\n\n"
-            "مثال:\n"
-            "/addstudent u0xxxxxxxx پارسا"
-        )
-        return
-
-    user_id = parts[1]
-    name = parts[2]
-
-    add_student(user_id, name)
-
-    message.reply(
-        "✅ دانش‌آموز با موفقیت ثبت شد.\n\n"
+        "✅ دانش‌آموز ثبت شد.\n\n"
         f"👤 نام: {name}\n"
-        f"🆔 آیدی: {user_id}"
+        f"🆔 ID: {user_id}"
     )
 
 
-# ============================================================
-# حذف دانش‌آموز
-# ============================================================
+# =========================================================
+# DELETE STUDENT
+# =========================================================
 
 @bot.on_message(commands=["delstudent"])
-async def delstudent_command(bot, message: Message):
+def delete_student(bot, message):
 
-    if not admin_only(message):
+    if not is_admin(get_sender_id(message)):
+        message.reply("⛔ دسترسی ندارید.")
         return
 
-    text = (message.text or "").strip()
-    parts = text.split()
+    args = getattr(message, "args", []) or []
 
-    if len(parts) < 2:
+    if len(args) != 1:
+
         message.reply(
-            "❌ مثال:\n"
-            "/delstudent u0xxxxxxxx"
+            "فرمت:\n"
+            "/delstudent USER_ID"
         )
         return
 
-    user_id = parts[1]
-
-    student = get_student(user_id)
-
-    if not student:
-        message.reply(
-            "❌ چنین دانش‌آموزی ثبت نشده است."
-        )
-        return
-
-    delete_student(user_id)
+    database.delete_student(args[0])
 
     message.reply(
-        f"🗑 دانش‌آموز «{student[1]}» حذف شد."
+        "✅ دانش‌آموز حذف شد."
     )
 
 
-# ============================================================
-# لیست دانش‌آموزان
-# ============================================================
+# =========================================================
+# STUDENTS
+# =========================================================
 
 @bot.on_message(commands=["students"])
-async def students_command(bot, message: Message):
+def students(bot, message):
 
-    if not admin_only(message):
+    if not is_admin(get_sender_id(message)):
+        message.reply("⛔ دسترسی ندارید.")
         return
 
-    students = get_students()
+    rows = database.get_students()
 
-    if not students:
+    if not rows:
+
         message.reply(
-            "📭 هنوز دانش‌آموزی ثبت نشده است."
+            "👥 هنوز دانش‌آموزی ثبت نشده است."
         )
         return
 
-    text = "👥 لیست دانش‌آموزان\n\n"
+    output = "👥 دانش‌آموزان ثبت‌شده\n\n"
 
-    for i, student in enumerate(students, 1):
-        text += (
-            f"{i}. {student[1]}\n"
-            f"🆔 {student[0]}\n"
-            f"🏆 {student[2]} امتیاز\n\n"
+    for index, row in enumerate(rows, 1):
+
+        try:
+            name = row["name"]
+            user_id = row["user_id"]
+            score = row["score"]
+        except Exception:
+            name = row[1]
+            user_id = row[0]
+            score = row[2]
+
+        output += (
+            f"{index}. {name}\n"
+            f"🆔 {user_id}\n"
+            f"⭐ {score}\n\n"
         )
 
-    message.reply(text)
+    message.reply(output)
 
 
-# ============================================================
-# آمار ربات
-# ============================================================
+# =========================================================
+# STATS
+# =========================================================
 
 @bot.on_message(commands=["stats"])
-async def stats_command(bot, message: Message):
+def stats(bot, message):
 
-    if not admin_only(message):
+    if not is_admin(get_sender_id(message)):
+        message.reply("⛔ دسترسی ندارید.")
         return
 
-    students = get_students()
-    questions = question_count()
+    students = database.get_students()
+    count = database.count_questions()
 
-    total_answers = 0
+    total_score = 0
+    total_correct = 0
+    total_wrong = 0
 
-    conn = db()
-    cur = conn.cursor()
+    for row in students:
 
-    cur.execute("SELECT COUNT(*) FROM answers")
-    total_answers = cur.fetchone()[0]
-
-    cur.execute(
-        "SELECT COUNT(*) FROM answers WHERE is_correct=1"
-    )
-    correct_answers = cur.fetchone()[0]
-
-    conn.close()
+        try:
+            total_score += int(row["score"] or 0)
+            total_correct += int(row["correct"] or 0)
+            total_wrong += int(row["wrong"] or 0)
+        except Exception:
+            pass
 
     message.reply(
         "📊 آمار ربات\n\n"
         f"👥 دانش‌آموزان: {len(students)}\n"
-        f"❓ سؤال‌ها: {questions}\n"
-        f"📝 پاسخ‌ها: {total_answers}\n"
-        f"✅ پاسخ‌های صحیح: {correct_answers}"
+        f"❓ تعداد سؤال‌ها: {count}\n"
+        f"⭐ مجموع امتیازات: {total_score}\n"
+        f"✅ پاسخ‌های درست: {total_correct}\n"
+        f"❌ پاسخ‌های غلط: {total_wrong}"
     )
 
 
-# ============================================================
-# انتخاب درس فعال
-# ============================================================
+# =========================================================
+# WARN
+# =========================================================
 
-@bot.on_message(commands=["setlesson"])
-async def setlesson_command(bot, message: Message):
+@bot.on_message(commands=["warn"])
+def warn(bot, message):
 
-    if not admin_only(message):
+    if not is_admin(get_sender_id(message)):
+        message.reply("⛔ دسترسی ندارید.")
         return
 
-    text = (message.text or "").strip()
-    parts = text.split()
+    args = getattr(message, "args", []) or []
 
-    if len(parts) < 3:
+    if len(args) != 1:
+
         message.reply(
-            "❌ فرمت:\n"
-            "/setlesson CHAPTER LESSON\n\n"
-            "مثال:\n"
-            "/setlesson 1 3"
+            "فرمت:\n"
+            "/warn USER_ID"
         )
         return
 
-    try:
-        chapter = int(parts[1])
-        lesson = int(parts[2])
-    except:
-        message.reply("❌ شماره فصل و درس باید عدد باشد.")
+    database.warn_student(args[0])
+
+    message.reply(
+        f"⚠️ برای کاربر {args[0]} یک اخطار ثبت شد."
+    )
+
+
+# =========================================================
+# UNWARN
+# =========================================================
+
+@bot.on_message(commands=["unwarn"])
+def unwarn(bot, message):
+
+    if not is_admin(get_sender_id(message)):
+        message.reply("⛔ دسترسی ندارید.")
         return
 
+    args = getattr(message, "args", []) or []
+
+    if len(args) != 1:
+
+        message.reply(
+            "فرمت:\n"
+            "/unwarn USER_ID"
+        )
+        return
+
+    database.unwarn_student(args[0])
+
+    message.reply(
+        f"✅ اخطارهای کاربر {args[0]} حذف شد."
+    )
+
+
+# =========================================================
+# SET LESSON
+# =========================================================
+
+@bot.on_message(commands=["setlesson"])
+def set_lesson(bot, message):
+
+    if not is_admin(get_sender_id(message)):
+        message.reply("⛔ دسترسی ندارید.")
+        return
+
+    args = getattr(message, "args", []) or []
+
+    if len(args) != 2:
+
+        message.reply(
+            "فرمت:\n"
+            "/setlesson CHAPTER LESSON\n\n"
+            "مثال:\n"
+            "/setlesson 2 6"
+        )
+        return
+
+    chapter = int(args[0])
+    lesson = int(args[1])
+
     if chapter not in CHAPTERS:
-        message.reply("❌ چنین فصلی وجود ندارد.")
+
+        message.reply("❌ شماره فصل باید بین ۱ تا ۶ باشد.")
         return
 
     if lesson not in LESSONS:
-        message.reply("❌ چنین درسی وجود ندارد.")
+
+        message.reply("❌ شماره درس باید بین ۱ تا ۲۰ باشد.")
         return
 
-    set_setting("active_lesson", lesson)
-    set_setting("active_chapter", chapter)
+    if LESSON_CHAPTER.get(lesson) != chapter:
+
+        message.reply(
+            "❌ این درس مربوط به این فصل نیست."
+        )
+        return
+
+    database.set_setting(
+        "active_chapter",
+        str(chapter)
+    )
+
+    database.set_setting(
+        "active_lesson",
+        str(lesson)
+    )
 
     message.reply(
         "✅ درس فعال تغییر کرد.\n\n"
-        f"📚 فصل: {chapter} - {CHAPTERS[chapter]}\n"
-        f"📖 {LESSONS[lesson]}"
+        f"📚 فصل {chapter}: {CHAPTERS[chapter]}\n"
+        f"📘 درس {lesson}: {LESSONS[lesson]}\n"
+        f"📖 صفحه شروع: {LESSON_PAGES[lesson]}"
     )
 
 
-# ============================================================
-# افزودن سؤال
-# ============================================================
+# =========================================================
+# ADD QUESTION
+# =========================================================
 
 @bot.on_message(commands=["addq"])
-async def addq_command(bot, message: Message):
+def add_question(bot, message):
 
-    if not admin_only(message):
+    if not is_admin(get_sender_id(message)):
+        message.reply("⛔ دسترسی ندارید.")
         return
 
     message.reply(
-        "ℹ️ برای بانک سؤال اصلی کتاب، سؤال‌ها را از فایل "
-        "questions.py وارد می‌کنیم.\n\n"
-        "این دستور فعلاً برای جلوگیری از خراب شدن فرمت سؤال "
-        "غیرفعال نگه داشته شده است."
+        "ℹ️ برای جلوگیری از خراب شدن سؤال‌ها، "
+        "بانک اصلی سؤال‌ها از فایل questions.py مدیریت می‌شود.\n\n"
+        "بعداً پنل حرفه‌ای افزودن سؤال را هم به همین ربات اضافه می‌کنیم."
     )
 
 
-# ============================================================
-# اخطار
-# ============================================================
-
-@bot.on_message(commands=["warn"])
-async def warn_command(bot, message: Message):
-
-    if not admin_only(message):
-        return
-
-    text = (message.text or "").strip()
-    parts = text.split()
-
-    if len(parts) < 2:
-        message.reply(
-            "❌ مثال:\n"
-            "/warn u0xxxxxxxx"
-        )
-        return
-
-    user_id = parts[1]
-
-    student = get_student(user_id)
-
-    if not student:
-        message.reply(
-            "❌ این کاربر در لیست دانش‌آموزان نیست."
-        )
-        return
-
-    conn = db()
-    cur = conn.cursor()
-
-    cur.execute("""
-        UPDATE students
-        SET warnings=warnings+1
-        WHERE user_id=?
-    """, (str(user_id),))
-
-    conn.commit()
-    conn.close()
-
-    new_student = get_student(user_id)
-
-    message.reply(
-        f"⚠️ یک اخطار برای {student[1]} ثبت شد.\n\n"
-        f"تعداد اخطارها: {new_student[6]}"
-    )
-
-
-# ============================================================
-# لغو اخطار
-# ============================================================
-
-@bot.on_message(commands=["unwarn"])
-async def unwarn_command(bot, message: Message):
-
-    if not admin_only(message):
-        return
-
-    text = (message.text or "").strip()
-    parts = text.split()
-
-    if len(parts) < 2:
-        message.reply(
-            "❌ مثال:\n"
-            "/unwarn u0xxxxxxxx"
-        )
-        return
-
-    user_id = parts[1]
-
-    conn = db()
-    cur = conn.cursor()
-
-    cur.execute("""
-        UPDATE students
-        SET warnings=CASE
-            WHEN warnings > 0 THEN warnings-1
-            ELSE 0
-        END
-        WHERE user_id=?
-    """, (str(user_id),))
-
-    conn.commit()
-    conn.close()
-
-    message.reply(
-        "✅ یک اخطار از کاربر کم شد."
-    )
-
-
-# ============================================================
-# حذف پیام
-# ============================================================
+# =========================================================
+# DELETE MESSAGE
+# =========================================================
 
 @bot.on_message(commands=["delmsg"])
-async def delmsg_command(bot, message: Message):
+def delete_message(bot, message):
 
-    if not admin_only(message):
+    if not is_admin(get_sender_id(message)):
+        message.reply("⛔ دسترسی ندارید.")
         return
 
-    text = (message.text or "").strip()
-    parts = text.split()
+    args = getattr(message, "args", []) or []
 
-    if len(parts) < 2:
+    if len(args) != 1:
+
         message.reply(
-            "❌ مثال:\n"
+            "فرمت:\n"
             "/delmsg MESSAGE_ID"
         )
         return
 
-    message_id = parts[1]
-
     try:
+
         bot.delete_message(
-            message.chat_id,
-            message_id
+            get_chat_id(message),
+            args[0]
         )
 
         message.reply("🗑 پیام حذف شد.")
 
     except Exception as e:
-        print("Delete message error:", e)
-        message.reply(
-            "❌ نتونستم پیام رو حذف کنم.\n"
-            "ممکنه ربات دسترسی حذف پیام نداشته باشه."
-        )
 
-
-# ============================================================
-# پیام‌های متنی معمولی
-# ============================================================
-
-@bot.on_message()
-async def text_handler(bot, message: Message):
-
-    text = (message.text or "").strip()
-
-    if not text:
-        return
-
-    # دستورات را اینجا دوباره پردازش نکن
-    if text.startswith("/"):
-        return
-
-    normalized = text.replace("‌", "").strip()
-
-    # --------------------------------------------
-    # ربات
-    # --------------------------------------------
-
-    if normalized.lower() == "ربات":
-        message.reply(
-            "سلام 😎🔥\n"
-            "در خدمتم!\n\n"
-            "بیا ببینیم توی تفکر و سواد رسانه‌ای چند چندی 📚🧠\n"
-            "بگو «سوال» تا شروع کنیم."
-        )
-        return
-
-    # --------------------------------------------
-    # سوال
-    # --------------------------------------------
-
-    if normalized in [
-        "سوال",
-        "سؤال",
-        "سوال بعدی",
-        "سؤال بعدی"
-    ]:
-        active_lesson = get_setting(
-            "active_lesson"
-        )
-
-        try:
-            active_lesson = int(active_lesson)
-        except:
-            active_lesson = None
-
-        send_question(
-            message,
-            active_lesson
-        )
-        return
-
-    # --------------------------------------------
-    # امتیاز
-    # --------------------------------------------
-
-    if normalized in [
-        "امتیاز",
-        "امتیاز من",
-        "نمره"
-    ]:
-        student = get_student(message.sender_id)
-
-        if not student:
-            message.reply(
-                "⛔ شما هنوز ثبت نشده‌اید."
-            )
-            return
+        print("DELETE ERROR:", repr(e))
 
         message.reply(
-            f"🏆 امتیاز شما: {student[2]}\n"
-            f"✅ درست: {student[3]}\n"
-            f"❌ غلط: {student[4]}"
+            "❌ حذف پیام انجام نشد."
         )
-        return
-
-    # --------------------------------------------
-    # جدول
-    # --------------------------------------------
-
-    if normalized in [
-        "جدول",
-        "رتبه",
-        "رنک",
-        "لیدربورد"
-    ]:
-        students = get_leaderboard()
-
-        if not students:
-            message.reply(
-                "📊 هنوز کسی ثبت نشده."
-            )
-            return
-
-        text_out = "🏆 جدول امتیازات\n\n"
-
-        for i, student in enumerate(
-            students[:20],
-            1
-        ):
-            text_out += (
-                f"{i}. {student[1]} — "
-                f"{student[2]} امتیاز\n"
-            )
-
-        message.reply(text_out)
-        return
-
-    # --------------------------------------------
-    # من
-    # --------------------------------------------
-
-    if normalized in [
-        "من",
-        "پروفایل",
-        "پروفایل من"
-    ]:
-        student = get_student(message.sender_id)
-
-        if not student:
-            message.reply(
-                "⛔ هنوز ثبت نشده‌ای."
-            )
-            return
-
-        message.reply(
-            f"👤 {student[1]}\n\n"
-            f"🏆 {student[2]} امتیاز\n"
-            f"✅ {student[3]} درست\n"
-            f"❌ {student[4]} غلط\n"
-            f"📝 {student[5]} پاسخ"
-        )
-        return
 
 
-# ============================================================
-# راه‌اندازی
-# ============================================================
+# =========================================================
+# COMMANDS
+# =========================================================
 
-init_database()
+try:
+
+    bot.set_commands([
+        {
+            "command": "start",
+            "description": "شروع ربات"
+        },
+        {
+            "command": "help",
+            "description": "راهنمای ربات"
+        },
+        {
+            "command": "admin",
+            "description": "پنل مدیریت"
+        },
+        {
+            "command": "students",
+            "description": "دانش‌آموزان"
+        },
+        {
+            "command": "stats",
+            "description": "آمار"
+        },
+    ])
+
+    print("✅ دستورات ربات ثبت شدند.")
+
+except Exception as e:
+
+    print(
+        "⚠️ ثبت دستورات انجام نشد:",
+        repr(e)
+    )
+
+
+# =========================================================
+# RUN
+# =========================================================
 
 print("======================================")
 print(f"🤖 {BOT_NAME}")
-print("📚 ربات تفکر و سواد رسانه‌ای")
-print("🚀 Rubika Bot")
+print("📚 تفکر و سواد رسانه‌ای دهم")
+print("👥 گروه: فعال")
+print("📝 آزمون: فعال")
+print("🏆 امتیاز: فعال")
+print("👑 مدیریت: فعال")
+print("======================================")
+print("🟢 ربات آماده دریافت پیام است.")
 print("======================================")
 
 
-# ============================================================
-# اجرای اصلی
-#
-# نکته مهم:
-# Rubka در نسخه‌ای که روی Railway داری برای اجرای run
-# به یک event loop فعال نیاز دارد.
-# بنابراین bot.run() را داخل asyncio.run اجرا می‌کنیم.
-# ============================================================
-
-async def main():
-
-    try:
-        # set_commands در نسخه فعلی Rubka به صورت async اجرا می‌شود.
-        await bot.set_commands([
-            {
-                "command": "start",
-                "description": "شروع ربات"
-            },
-            {
-                "command": "help",
-                "description": "راهنما"
-            },
-            {
-                "command": "question",
-                "description": "سؤال جدید"
-            },
-            {
-                "command": "score",
-                "description": "امتیاز من"
-            },
-            {
-                "command": "leaderboard",
-                "description": "جدول امتیازات"
-            },
-            {
-                "command": "me",
-                "description": "پروفایل من"
-            }
-        ])
-
-        print("✅ دستورات ربات ثبت شدند.")
-
-    except Exception as e:
-        print(
-            "⚠️ ثبت دستورات انجام نشد، "
-            "ولی ربات ادامه می‌دهد:"
-        )
-        print(e)
-
-    print("🟢 ربات آماده دریافت پیام است.")
-
-    # اجرای Rubka داخل event loop فعال
-    bot.run()
-
-
-if __name__ == "__main__":
-    asyncio.run(main())
+bot.run()
